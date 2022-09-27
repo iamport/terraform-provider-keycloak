@@ -7,7 +7,6 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"fmt"
-	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"io/ioutil"
 	"net/http"
 	"net/http/cookiejar"
@@ -15,6 +14,8 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 
 	"github.com/hashicorp/go-version"
 
@@ -41,6 +42,7 @@ type ClientCredentials struct {
 	ClientSecret string
 	Username     string
 	Password     string
+	Totp         string
 	GrantType    string
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
@@ -59,7 +61,7 @@ var redHatSSO7VersionMap = map[int]string{
 	4: "9.0.17",
 }
 
-func NewKeycloakClient(ctx context.Context, url, basePath, clientId, clientSecret, realm, username, password string, initialLogin bool, clientTimeout int, caCert string, tlsInsecureSkipVerify bool, userAgent string, redHatSSO bool, additionalHeaders map[string]string) (*KeycloakClient, error) {
+func NewKeycloakClient(ctx context.Context, url, basePath, clientId, clientSecret, realm, username, password string, totp string, initialLogin bool, clientTimeout int, caCert string, tlsInsecureSkipVerify bool, userAgent string, redHatSSO bool, additionalHeaders map[string]string) (*KeycloakClient, error) {
 	clientCredentials := &ClientCredentials{
 		ClientId:     clientId,
 		ClientSecret: clientSecret,
@@ -68,6 +70,9 @@ func NewKeycloakClient(ctx context.Context, url, basePath, clientId, clientSecre
 		clientCredentials.Username = username
 		clientCredentials.Password = password
 		clientCredentials.GrantType = "password"
+		if totp != "" {
+			clientCredentials.Totp = totp
+		}
 	} else if clientSecret != "" {
 		clientCredentials.GrantType = "client_credentials"
 	} else {
@@ -253,6 +258,10 @@ func (keycloakClient *KeycloakClient) getAuthenticationFormData() url.Values {
 		authenticationFormData.Set("username", keycloakClient.clientCredentials.Username)
 		authenticationFormData.Set("password", keycloakClient.clientCredentials.Password)
 
+		if keycloakClient.clientCredentials.Totp != "" {
+			authenticationFormData.Set("totp", keycloakClient.clientCredentials.Totp)
+		}
+
 		if keycloakClient.clientCredentials.ClientSecret != "" {
 			authenticationFormData.Set("client_secret", keycloakClient.clientCredentials.ClientSecret)
 		}
@@ -284,7 +293,8 @@ func (keycloakClient *KeycloakClient) addRequestHeaders(request *http.Request) {
 	}
 }
 
-/**
+/*
+*
 Sends an HTTP request and refreshes credentials on 403 or 401 errors
 */
 func (keycloakClient *KeycloakClient) sendRequest(ctx context.Context, request *http.Request, body []byte) ([]byte, string, error) {
