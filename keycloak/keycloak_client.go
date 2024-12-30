@@ -49,8 +49,8 @@ type ClientCredentials struct {
 }
 
 const (
-	apiUrl   = "/admin"
-	tokenUrl = "%s/realms/%s/protocol/openid-connect/token"
+	apiUrl   = "/auth/admin"
+	tokenUrl = "%s/auth/realms/%s/protocol/openid-connect/token"
 )
 
 // https://access.redhat.com/articles/2342881
